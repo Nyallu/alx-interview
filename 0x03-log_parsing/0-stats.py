@@ -1,42 +1,50 @@
 #!/usr/bin/python3
+"""
+log parsing
+"""
 
 import sys
+import re
 
-def print_statistics(total_size, status_codes):
-    print(f"File size: {total_size}")
-    for code in sorted(status_codes):
-        print(f"{code}: {status_codes[code]}")
 
-def parse_log_line(line):
-    try:
-        parts = line.strip().split()
-        ip_address = parts[0]
-        status_code = int(parts[-2])
-        file_size = int(parts[-1])
-        return ip_address, status_code, file_size
-    except (ValueError, IndexError):
-        return None, None, None
+def output(log: dict) -> None:
+    """
+    helper function to display stats
+    """
+    print("File size: {}".format(log["file_size"]))
+    for code in sorted(log["code_frequency"]):
+        if log["code_frequency"][code]:
+            print("{}: {}".format(code, log["code_frequency"][code]))
 
-def main():
-    total_size = 0
-    status_codes = {}
-
-    try:
-        for line_count, line in enumerate(sys.stdin, 1):
-            ip, status_code, file_size = parse_log_line(line)
-            if ip is None:
-                continue
-
-            total_size += file_size
-            status_codes[status_code] = status_codes.get(status_code, 0) + 1
-
-            if line_count % 10 == 0:
-                print_statistics(total_size, status_codes)
-
-    except KeyboardInterrupt:
-        print_statistics(total_size, status_codes)
-        sys.exit(0)
 
 if __name__ == "__main__":
-    main()
+    regex = re.compile(
+    r'\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3} - \[\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}.\d+\] "GET /projects/260 HTTP/1.1" (.{3}) (\d+)')  # nopep8
 
+    line_count = 0
+    log = {}
+    log["file_size"] = 0
+    log["code_frequency"] = {
+        str(code): 0 for code in [
+            200, 301, 400, 401, 403, 404, 405, 500]}
+
+    try:
+        for line in sys.stdin:
+            line = line.strip()
+            match = regex.fullmatch(line)
+            if (match):
+                line_count += 1
+                code = match.group(1)
+                file_size = int(match.group(2))
+
+                # File size
+                log["file_size"] += file_size
+
+                # status code
+                if (code.isdecimal()):
+                    log["code_frequency"][code] += 1
+
+                if (line_count % 10 == 0):
+                    output(log)
+    finally:
+        output(log)
